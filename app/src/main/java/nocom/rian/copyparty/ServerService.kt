@@ -57,6 +57,10 @@ class ServerService : Service() {
                         import sys
                         from java import jclass
                         
+                        site_packages = "/data/data/nocom.rian.copyparty/files/site-packages"
+                        if site_packages not in sys.path:
+                            sys.path.insert(0, site_packages)
+                            
                         LogManager = jclass("nocom.rian.copyparty.LogManager")
                         
                         class JavaLogRedirector(object):

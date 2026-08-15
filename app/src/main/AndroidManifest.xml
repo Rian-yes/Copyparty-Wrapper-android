@@ -46,6 +46,12 @@
             android:exported="false"
             android:label="Server Logs" />
 
+        <!-- Package Manager Activity -->
+        <activity
+            android:name=".PackageManagerActivity"
+            android:exported="false"
+            android:label="Python Library Manager" />
+
         <!-- Copyparty Service -->
         <service
             android:name=".ServerService"

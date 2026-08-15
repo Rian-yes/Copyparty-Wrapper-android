@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.util.Log
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -12,6 +13,8 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
 import java.io.File
 
 class ConfigEditorActivity : AppCompatActivity() {
@@ -24,6 +27,7 @@ class ConfigEditorActivity : AppCompatActivity() {
         val btnSave = findViewById<Button>(R.id.btnSave)
         val btnCancel = findViewById<Button>(R.id.btnCancel)
         val btnImportFile = findViewById<Button>(R.id.btnImportFile)
+        val btnManagePackages = findViewById<Button>(R.id.btnManagePackages)
 
         val configFile = File(filesDir, "copyparty.conf")
 
@@ -54,6 +58,11 @@ class ConfigEditorActivity : AppCompatActivity() {
                 type = "*/*"
             }
             startActivityForResult(intent, 103)
+        }
+
+        btnManagePackages.setOnClickListener {
+            val intent = Intent(this, PackageManagerActivity::class.java)
+            startActivity(intent)
         }
 
         btnSave.setOnClickListener {

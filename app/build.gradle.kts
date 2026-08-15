@@ -67,6 +67,7 @@ android {
                 pip {
                     install("copyparty")
                     install("Pillow") // Optional: enables thumbnail rendering in copyparty
+                    install("mutagen")
                 }
             }
         }
