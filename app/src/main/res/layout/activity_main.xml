@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Copyparty Server Control"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <!-- HTTP Port -->
+        <EditText
+            android:id="@+id/etHttpPort"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="HTTP Port (Default: 3923)"
+            android:inputType="number"
+            android:text="3923" />
+
+        <!-- FTP Toggle & Port -->
+        <CheckBox
+            android:id="@+id/cbEnableFtp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enable FTP Server" />
+
+        <EditText
+            android:id="@+id/etFtpPort"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="FTP Port (Default: 2121)"
+            android:inputType="number"
+            android:text="2121" />
+
+        <!-- Storage Path -->
+        <EditText
+            android:id="@+id/etSharedPath"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Shared Path (e.g. /sdcard/Download)"
+            android:text="/sdcard/Download" />
+
+        <!-- Event Hook -->
+        <EditText
+            android:id="@+id/etUploadHook"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="On-Upload Hook Command (Optional)" />
+
+        <Button
+            android:id="@+id/btnStart"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Start Copyparty Server" />
+
+    </LinearLayout>
+</ScrollView>

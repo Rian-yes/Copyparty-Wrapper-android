@@ -1,0 +1,21 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/CodeOnTheGoProjects/Copyparty/app/src/main/res/layout/activity_main.xml",
+      "selection": {
+        "end": {
+          "column": 38,
+          "index": 886,
+          "line": 24
+        },
+        "start": {
+          "column": 38,
+          "index": 886,
+          "line": 24
+        }
+      }
+    }
+  ],
+  "projectPath": "/storage/emulated/0/CodeOnTheGoProjects/Copyparty",
+  "selectedFile": "/storage/emulated/0/CodeOnTheGoProjects/Copyparty/app/src/main/res/layout/activity_main.xml"
+}
