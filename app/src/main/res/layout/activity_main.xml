@@ -55,6 +55,19 @@
             android:layout_height="wrap_content"
             android:hint="On-Upload Hook Command (Optional)" />
 
+        <CheckBox
+            android:id="@+id/cbUseCustomConfig"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Use Custom Config File" />
+
+        <Button
+            android:id="@+id/btnEditConfig"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Edit Custom Config File" />
         <Button
             android:id="@+id/btnStart"
             android:layout_width="match_parent"
@@ -62,5 +75,11 @@
             android:layout_marginTop="16dp"
             android:text="Start Copyparty Server" />
 
+        <Button
+            android:id="@+id/btnViewLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="View Server Logs" />
     </LinearLayout>
 </ScrollView>

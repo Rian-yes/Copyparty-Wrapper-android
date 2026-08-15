@@ -1,6 +1,7 @@
 package nocom.rian.copyparty
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -8,9 +9,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.text.method.ScrollingMovementMethod
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -27,14 +30,56 @@ class MainActivity : AppCompatActivity() {
         val etFtpPort = findViewById<EditText>(R.id.etFtpPort)
         val etSharedPath = findViewById<EditText>(R.id.etSharedPath)
         val etUploadHook = findViewById<EditText>(R.id.etUploadHook)
+        val cbUseCustomConfig = findViewById<CheckBox>(R.id.cbUseCustomConfig)
+        val btnEditConfig = findViewById<Button>(R.id.btnEditConfig)
         val btnStart = findViewById<Button>(R.id.btnStart)
+
+        // Load custom config preference
+        val sharedPref = getSharedPreferences("copyparty_prefs", Context.MODE_PRIVATE)
+        cbUseCustomConfig.isChecked = sharedPref.getBoolean("use_custom_config", false)
+
+        // Enable/disable form inputs based on check state
+        val initEnabled = !cbUseCustomConfig.isChecked
+        etHttpPort.isEnabled = initEnabled
+        cbEnableFtp.isEnabled = initEnabled
+        etFtpPort.isEnabled = initEnabled
+        etSharedPath.isEnabled = initEnabled
+        etUploadHook.isEnabled = initEnabled
+
+        cbUseCustomConfig.setOnCheckedChangeListener { _, isChecked ->
+            sharedPref.edit().putBoolean("use_custom_config", isChecked).apply()
+            val enabled = !isChecked
+            etHttpPort.isEnabled = enabled
+            cbEnableFtp.isEnabled = enabled
+            etFtpPort.isEnabled = enabled
+            etSharedPath.isEnabled = enabled
+            etUploadHook.isEnabled = enabled
+        }
+
+        btnEditConfig.setOnClickListener {
+            val intent = Intent(this, ConfigEditorActivity::class.java)
+            startActivityForResult(intent, 102)
+        }
+        val btnViewLogs = findViewById<Button>(R.id.btnViewLogs)
+        btnViewLogs.setOnClickListener {
+            val intent = Intent(this, LogViewerActivity::class.java)
+            startActivity(intent)
+        }
 
         // Request permissions on app launch
         checkStoragePermission()
         checkNotificationPermission()
 
-
         btnStart.setOnClickListener {
+            if (ServerService.isRunning) {
+                val serviceIntent = Intent(this, ServerService::class.java)
+                stopService(serviceIntent)
+                ServerService.isRunning = false
+                btnStart.text = "Start Copyparty Server"
+                Toast.makeText(this, "Copyparty Stopped!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
             if (!hasStoragePermission()) {
                 Toast.makeText(this, "Please grant All Files Access first!", Toast.LENGTH_SHORT).show()
                 checkStoragePermission()
@@ -43,28 +88,36 @@ class MainActivity : AppCompatActivity() {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    Toast.makeText(this, "Please grant Notification Permission first!", Toast.LENGTH_SHORT).show()
                     checkNotificationPermission()
-                    return@setOnClickListener
                 }
             }
 
             val httpPort = etHttpPort.text.toString()
-            val enableFtp = cbEnableFtp.isChecked
-            val ftpPort = etFtpPort.text.toString()
-            val sharedPath = etSharedPath.text.toString()
-            val uploadHook = etUploadHook.text.toString()
-
-            // Write copyparty.conf to internal storage using ConfigWriter
             val configFile = File(filesDir, "copyparty.conf")
-            ConfigWriter.generateConfig(
-                httpPort = httpPort,
-                enableFtp = enableFtp,
-                ftpPort = ftpPort,
-                sharedPath = sharedPath,
-                uploadHook = uploadHook,
-                outputFile = configFile
-            )
+            val useCustom = cbUseCustomConfig.isChecked
+
+            if (!useCustom) {
+                val enableFtp = cbEnableFtp.isChecked
+                val ftpPort = etFtpPort.text.toString()
+                val sharedPath = etSharedPath.text.toString()
+                val uploadHook = etUploadHook.text.toString()
+
+                // Write copyparty.conf to internal storage using ConfigWriter
+                ConfigWriter.generateConfig(
+                    httpPort = httpPort,
+                    enableFtp = enableFtp,
+                    ftpPort = ftpPort,
+                    sharedPath = sharedPath,
+                    uploadHook = uploadHook,
+                    outputFile = configFile
+                )
+            } else {
+                if (!configFile.exists()) {
+                    Toast.makeText(this, "Custom config file not found! Please edit and save it first.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+            }
+
             // Launch Server Service
             val serviceIntent = Intent(this, ServerService::class.java).apply {
                 putExtra("CONFIG_PATH", configFile.absolutePath)
@@ -74,8 +127,11 @@ class MainActivity : AppCompatActivity() {
             } else {
                 startService(serviceIntent)
             }
+            ServerService.isRunning = true
+            btnStart.text = "Stop Copyparty Server"
 
-            Toast.makeText(this, "Copyparty Started on Port $httpPort!", Toast.LENGTH_SHORT).show()
+            val displayPort = if (useCustom) "configured port" else httpPort
+            Toast.makeText(this, "Copyparty Started on $displayPort!", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -112,6 +168,24 @@ class MainActivity : AppCompatActivity() {
                     101
                 )
             }
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 102 && resultCode == RESULT_OK) {
+            val cbUseCustomConfig = findViewById<CheckBox>(R.id.cbUseCustomConfig)
+            cbUseCustomConfig.isChecked = true
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val btnStart = findViewById<Button>(R.id.btnStart)
+        if (ServerService.isRunning) {
+            btnStart.text = "Stop Copyparty Server"
+        } else {
+            btnStart.text = "Start Copyparty Server"
         }
     }
 }
