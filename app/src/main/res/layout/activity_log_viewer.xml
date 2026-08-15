@@ -27,19 +27,22 @@
             android:text="Clear" />
 
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/tvLogs"
+    <ScrollView
+        android:id="@+id/svLogsContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#1E1E1E"
-        android:textColor="#FFFFFF"
-        android:fontFamily="monospace"
-        android:padding="8dp"
-        android:scrollbars="vertical"
-        android:scrollbarStyle="insideOverlay"
-        android:textSize="12sp"
-        android:gravity="top" />
+        android:background="#1E1E1E">
+
+        <TextView
+            android:id="@+id/tvLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:fontFamily="monospace"
+            android:padding="8dp"
+            android:textSize="12sp"
+            android:gravity="top" />
+    </ScrollView>
 
 </LinearLayout>
