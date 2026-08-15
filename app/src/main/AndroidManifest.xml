@@ -34,6 +34,18 @@
             </intent-filter>
         </activity>
 
+        <!-- Config Editor Activity -->
+        <activity
+            android:name=".ConfigEditorActivity"
+            android:exported="false"
+            android:label="Custom Config Editor" />
+
+        <!-- Log Viewer Activity -->
+        <activity
+            android:name=".LogViewerActivity"
+            android:exported="false"
+            android:label="Server Logs" />
+
         <!-- Copyparty Service -->
         <service
             android:name=".ServerService"
