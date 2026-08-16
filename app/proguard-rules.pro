@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Prevent ProGuard/R8 from obfuscating/stripping any classes in the app package,
+# as they may be dynamically loaded or accessed by Python scripts via Chaquopy.
+-keep class nocom.rian.copyparty.** { *; }
