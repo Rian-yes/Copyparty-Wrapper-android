@@ -44,7 +44,7 @@ class ServerService : Service() {
             return START_NOT_STICKY
         }
 
-        if (isRunning && serverThread?.isAlive == true) {
+        if (isRunning) {
             Log.d("Copyparty", "ServerService already running, ignoring start request")
             return START_STICKY
         }

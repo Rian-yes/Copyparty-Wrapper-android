@@ -76,6 +76,8 @@ class MainActivity : AppCompatActivity() {
         checkNotificationPermission()
 
         btnStart.setOnClickListener {
+            btnStart.isEnabled = false
+            btnStart.postDelayed({ btnStart.isEnabled = true }, 1000)
             val serviceIntent = Intent(this, ServerService::class.java)
             
             if (ServerService.isRunning) {
