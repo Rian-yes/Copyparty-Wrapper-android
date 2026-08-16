@@ -11,18 +11,17 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
-import java.io.File
+import kotlin.concurrent.thread
 
 class ServerService : Service() {
     companion object {
+        @Volatile
         var isRunning = false
     }
 
     private var serverThread: Thread? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val configPath = intent?.getStringExtra("CONFIG_PATH") ?: return START_NOT_STICKY
-
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, "copyparty_channel")
             .setContentTitle("Copyparty Server")
@@ -36,70 +35,103 @@ class ServerService : Service() {
             startForeground(1, notification)
         }
 
-        serverThread = Thread {
+        val configPath = intent?.getStringExtra("CONFIG_PATH")
+        if (configPath == null) {
+            Log.w("Copyparty", "ServerService started with null config path")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (isRunning && serverThread?.isAlive == true) {
+            Log.d("Copyparty", "ServerService already running, ignoring start request")
+            return START_STICKY
+        }
+        
+        isRunning = true
+
+        serverThread = thread(start = true, name = "CopypartyServerThread") {
             try {
                 if (!Python.isStarted()) {
                     Python.start(AndroidPlatform(applicationContext))
                 }
-                
-                val py = Python.getInstance()
-                val pyArgs = arrayOf("copyparty", "-c", configPath)
-                
-                val sys = py.getModule("sys")
-                sys.put("argv", pyArgs)
-                
-                // Monkeypatch SvcHub.__init__ to capture the reference & thread ID, and redirect stdout/stderr
-                try {
-                    val globals = py.getModule("builtins").callAttr("dict")
-                    py.getModule("builtins").callAttr("exec", """
-                        import copyparty.svchub
-                        import threading
-                        import sys
-                        from java import jclass
-                        
-                        site_packages = "/data/data/nocom.rian.copyparty/files/site-packages"
-                        if site_packages not in sys.path:
-                            sys.path.insert(0, site_packages)
-                            
-                        LogManager = jclass("nocom.rian.copyparty.LogManager")
-                        
-                        class JavaLogRedirector(object):
-                            def __init__(self, original):
-                                self.original = original
-                            def write(self, message):
-                                if message:
-                                    LogManager.log(message)
-                                    self.original.write(message)
-                            def flush(self):
-                                self.original.flush()
-                        
-                        if not isinstance(sys.stdout, JavaLogRedirector):
-                            sys.stdout = JavaLogRedirector(sys.stdout)
-                        if not isinstance(sys.stderr, JavaLogRedirector):
-                            sys.stderr = JavaLogRedirector(sys.stderr)
-                            
-                        if not hasattr(copyparty.svchub, '_original_init'):
-                            copyparty.svchub._original_init = copyparty.svchub.SvcHub.__init__
-                            
-                        def patched_init(self, *args, **kwargs):
-                            copyparty.svchub.active_hub = self
-                            copyparty.svchub.server_thread_id = threading.get_ident()
-                            copyparty.svchub._original_init(self, *args, **kwargs)
-                            
-                        copyparty.svchub.SvcHub.__init__ = patched_init
-                    """.trimIndent(), globals)
-                } catch (e: Exception) {
-                    Log.e("Copyparty", "Failed to apply SvcHub patch & redirect logs", e)
-                }
 
-                val mainModule = py.getModule("copyparty.__main__")
-                mainModule.callAttr("main")
+                val py = Python.getInstance()
+                val sys = py.getModule("sys")
+                sys.put("argv", arrayOf("copyparty", "-c", configPath, "--sig-thr"))
+
+                val globals = py.getModule("builtins").callAttr("dict")
+                py.getModule("builtins").callAttr("exec", """
+                    import sys
+                    import signal
+                    import threading
+                    from java import jclass
+
+                    LogManager = jclass("nocom.rian.copyparty.LogManager")
+
+                    class _LogRedirector:
+                        def __init__(self, orig):
+                            self._orig = orig
+                            self.encoding = getattr(orig, 'encoding', 'utf-8')
+                        def write(self, s):
+                            if s:
+                                LogManager.log(s)
+                                self._orig.write(s)
+                        def flush(self):
+                            self._orig.flush()
+                        def isatty(self):
+                            return False
+                        def __getattr__(self, name):
+                            return getattr(self._orig, name)
+
+                    if not isinstance(sys.stdout, _LogRedirector):
+                        sys.stdout = _LogRedirector(sys.stdout)
+                    if not isinstance(sys.stderr, _LogRedirector):
+                        sys.stderr = _LogRedirector(sys.stderr)
+
+                    signal.signal = lambda *a, **kw: None
+
+                    import socket
+                    _orig_sock_init = getattr(socket.socket, '_orig_sock_init', socket.socket.__init__)
+                    socket.socket._orig_sock_init = _orig_sock_init
+
+                    def _patched_socket_init(self, family=socket.AF_INET, type=socket.SOCK_STREAM, proto=0, fileno=None):
+                        _orig_sock_init(self, family, type, proto, fileno)
+                        try:
+                            self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                            if hasattr(socket, 'SO_REUSEPORT'):
+                                self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                        except Exception:
+                            pass
+
+                    socket.socket.__init__ = _patched_socket_init
+
+                    for _mod in list(sys.modules):
+                        if _mod.startswith('copyparty'):
+                            del sys.modules[_mod]
+
+                    import copyparty.svchub
+                    _orig_hub_init = getattr(copyparty.svchub.SvcHub, '_orig_hub_init', copyparty.svchub.SvcHub.__init__)
+                    copyparty.svchub.SvcHub._orig_hub_init = _orig_hub_init
+                    def _patched_init(self, *a, **kw):
+                        _orig_hub_init(self, *a, **kw)
+                        copyparty.svchub.active_hub = self
+                    copyparty.svchub.SvcHub.__init__ = _patched_init
+                """.trimIndent(), globals)
+
+                py.getModule("copyparty.__main__").callAttr("main")
             } catch (e: Exception) {
-                Log.e("Copyparty", "Error starting server", e)
+                val msg = e.message ?: ""
+                if (msg.contains("SystemExit")) {
+                    Log.d("Copyparty", "Server main thread exited cleanly via SystemExit")
+                } else {
+                    Log.e("Copyparty", "Error starting server", e)
+                    LogManager.log("SERVER ERROR: ${e.message}\n")
+                }
+            } finally {
+                isRunning = false
+                Log.d("Copyparty", "Server thread terminated cleanly.")
             }
         }
-        serverThread?.start()
-        isRunning = true
 
         return START_STICKY
     }
@@ -111,42 +143,27 @@ class ServerService : Service() {
                 val globals = py.getModule("builtins").callAttr("dict")
                 py.getModule("builtins").callAttr("exec", """
                     import copyparty.svchub
-                    import ctypes
-                    
-                    if hasattr(copyparty.svchub, 'active_hub') and copyparty.svchub.active_hub is not None:
-                        hub = copyparty.svchub.active_hub
+
+                    hub = getattr(copyparty.svchub, 'active_hub', None)
+                    if hub is not None:
                         try:
-                            hub.broker.shutdown()
-                        except Exception as ex:
-                            print("Error shutting down broker: " + str(ex))
-                        
-                        # Close the listener sockets to unbind the port immediately
-                        if hasattr(hub, 'tcpsrv') and hub.tcpsrv is not None:
-                            if hasattr(hub.tcpsrv, 'srv') and hub.tcpsrv.srv:
-                                for sock in hub.tcpsrv.srv:
-                                    try:
-                                        sock.close()
-                                    except Exception as ex:
-                                        print("Error closing socket: " + str(ex))
-                                        
+                            hub.shutdown()
+                        except Exception:
+                            pass
                         copyparty.svchub.active_hub = None
-                        
-                    # Terminate the server thread using async exception
-                    if hasattr(copyparty.svchub, 'server_thread_id') and copyparty.svchub.server_thread_id is not None:
-                        try:
-                            ctypes.pythonapi.PyThreadState_SetAsyncExc(
-                                ctypes.c_long(copyparty.svchub.server_thread_id),
-                                ctypes.py_object(SystemExit)
-                            )
-                        except Exception as ex:
-                            print("Error killing thread: " + str(ex))
-                        copyparty.svchub.server_thread_id = None
                 """.trimIndent(), globals)
             }
         } catch (e: Exception) {
             Log.e("Copyparty", "Error during service shutdown", e)
         }
-        serverThread?.interrupt()
+
+        try {
+            serverThread?.join(2000)
+        } catch (e: InterruptedException) {
+            Log.w("Copyparty", "Interrupted waiting for server thread termination", e)
+        }
+
+        serverThread = null
         isRunning = false
         super.onDestroy()
     }

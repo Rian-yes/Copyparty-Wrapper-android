@@ -71,12 +71,13 @@ class MainActivity : AppCompatActivity() {
         checkNotificationPermission()
 
         btnStart.setOnClickListener {
+            val serviceIntent = Intent(this, ServerService::class.java)
+            
             if (ServerService.isRunning) {
-                val serviceIntent = Intent(this, ServerService::class.java)
+                // Stop the service properly
                 stopService(serviceIntent)
-                ServerService.isRunning = false
                 btnStart.text = "Start Copyparty Server"
-                Toast.makeText(this, "Copyparty Stopped!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Stopping Copyparty...", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
@@ -102,7 +103,6 @@ class MainActivity : AppCompatActivity() {
                 val sharedPath = etSharedPath.text.toString()
                 val uploadHook = etUploadHook.text.toString()
 
-                // Write copyparty.conf to internal storage using ConfigWriter
                 ConfigWriter.generateConfig(
                     httpPort = httpPort,
                     enableFtp = enableFtp,
@@ -119,17 +119,14 @@ class MainActivity : AppCompatActivity() {
             }
 
             // Launch Server Service
-            val serviceIntent = Intent(this, ServerService::class.java).apply {
-                putExtra("CONFIG_PATH", configFile.absolutePath)
-            }
+            serviceIntent.putExtra("CONFIG_PATH", configFile.absolutePath)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent)
             } else {
                 startService(serviceIntent)
             }
-            ServerService.isRunning = true
+            
             btnStart.text = "Stop Copyparty Server"
-
             val displayPort = if (useCustom) "configured port" else httpPort
             Toast.makeText(this, "Copyparty Started on $displayPort!", Toast.LENGTH_SHORT).show()
         }
@@ -182,6 +179,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         val btnStart = findViewById<Button>(R.id.btnStart)
+        // ponytail: read the @Volatile flag directly; getRunningServices is deprecated and races with stopSelf
         if (ServerService.isRunning) {
             btnStart.text = "Stop Copyparty Server"
         } else {
