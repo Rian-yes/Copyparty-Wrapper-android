@@ -1,6 +1,8 @@
 name: Build FFmpeg for Android
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       ffmpeg_version:
@@ -43,7 +45,7 @@ jobs:
           cd ffmpeg-android-maker
           bash ffmpeg-android-maker.sh \
             --target-abis=arm64-v8a \
-            --source-tar=${{ github.event.inputs.ffmpeg_version }} \
+            --source-tar=${{ inputs.ffmpeg_version || '8.1.2' }} \
             --enable-libwebp \
             --android-api-level=24
 
@@ -80,8 +82,8 @@ jobs:
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ffmpeg-${{ github.event.inputs.ffmpeg_version }}
-          name: FFmpeg ${{ github.event.inputs.ffmpeg_version }} (Android arm64-v8a + libwebp)
+          tag_name: ffmpeg-${{ inputs.ffmpeg_version || '8.1.2' }}
+          name: FFmpeg ${{ inputs.ffmpeg_version || '8.1.2' }} (Android arm64-v8a + libwebp)
           files: |
             artifacts/ffmpeg
             artifacts/ffprobe
