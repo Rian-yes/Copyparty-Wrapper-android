@@ -7,10 +7,12 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.system.Os
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
+import java.io.File
 import kotlin.concurrent.thread
 
 class ServerService : Service() {
@@ -55,6 +57,26 @@ class ServerService : Service() {
                     Python.start(AndroidPlatform(applicationContext))
                 }
 
+                // ponytail: symlink bundled ffmpeg/ffprobe so copyparty finds them on PATH
+                val nativeLibDir = applicationInfo.nativeLibraryDir
+                val binDir = File(filesDir, "bin").apply { mkdirs() }
+                for (tool in arrayOf("ffmpeg", "ffprobe")) {
+                    val src = File(nativeLibDir, "lib$tool.so")
+                    val link = File(binDir, tool)
+                    // recreate if stale (e.g. app update changed nativeLibDir)
+                    if (link.exists() && !src.exists()) link.delete()
+                    if (!link.exists() && src.exists()) {
+                        try {
+                            Os.symlink(src.absolutePath, link.absolutePath)
+                            Log.i("Copyparty", "$tool linked: ${src.absolutePath}")
+                        } catch (e: Exception) {
+                            Log.w("Copyparty", "Failed to symlink $tool", e)
+                        }
+                    } else if (!src.exists()) {
+                        Log.w("Copyparty", "$tool not found at ${src.absolutePath}")
+                    }
+                }
+
                 val py = Python.getInstance()
                 val sys = py.getModule("sys")
                 sys.put("argv", arrayOf("copyparty", "-c", configPath, "--sig-thr"))
@@ -62,9 +84,24 @@ class ServerService : Service() {
                 val globals = py.getModule("builtins").callAttr("dict")
                 py.getModule("builtins").callAttr("exec", """
                     import sys
+                    import importlib
+                    import os
                     import signal
                     import threading
                     from java import jclass
+
+                    # prepend bundled ffmpeg/ffprobe bin dir to PATH
+                    _bin = "${binDir.absolutePath}"
+                    if os.path.isdir(_bin):
+                        os.environ["PATH"] = _bin + os.pathsep + os.environ.get("PATH", "")
+
+                    target_dir = os.path.join(sys.prefix, "files", "site-packages") if hasattr(sys, "prefix") else ""
+                    if os.path.exists(target_dir) and target_dir not in sys.path:
+                        sys.path.insert(0, target_dir)
+
+                    importlib.invalidate_caches()
+                    if hasattr(sys, 'path_importer_cache'):
+                        sys.path_importer_cache.clear()
 
                     LogManager = jclass("nocom.rian.copyparty.LogManager")
 
@@ -116,6 +153,7 @@ class ServerService : Service() {
                         _orig_hub_init(self, *a, **kw)
                         copyparty.svchub.active_hub = self
                     copyparty.svchub.SvcHub.__init__ = _patched_init
+
                 """.trimIndent(), globals)
 
                 py.getModule("copyparty.__main__").callAttr("main")

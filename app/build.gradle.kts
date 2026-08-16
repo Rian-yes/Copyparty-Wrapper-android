@@ -1,6 +1,7 @@
 
 import java.util.Properties
 import java.io.FileInputStream
+import java.net.URI
 
 plugins {
     id("com.android.application")
@@ -59,15 +60,21 @@ android {
             useSupportLibrary = true
         }
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += listOf("arm64-v8a")
         }
         chaquopy {
             defaultConfig {
-                // Specifies dependencies installed into your APK at build time
+                version = "3.10"
                 pip {
-                    install("copyparty")
-                    install("Pillow") // Optional: enables thumbnail rendering in copyparty
+                    install("Pillow")
                     install("mutagen")
+                    install("cryptography==42.0.8")
+                    install("bcrypt==3.1.7")
+                    install("pyzmq==24.0.1")
+                    install("paramiko==2.12.0")
+                    install("pyopenssl==24.0.0")
+                    install("copyparty[all,audiotags]")
+                    install("pip")
                 }
             }
         }
@@ -102,33 +109,23 @@ android {
         kotlinCompilerExtensionVersion = "1.5.10"
     }
     packaging {
+        jniLibs {
+            // ponytail: ffmpeg/ffprobe are CLI executables disguised as .so —
+            // must be extracted to disk, not loaded from APK
+            useLegacyPackaging = true
+        }
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
-
-            // The part below is only needed for compose builds.
-            // This packaging block is required to solve interdependency conflicts.
-            // They arise only when using local maven repo, so I suppose online repos have some way of solving such issues.
-
-            // Caused by: com.android.builder.merge.DuplicateRelativeFileException: 4 files found with path 'commonMain/default/linkdata/module' from inputs:
-            // - AndroidIDE\libs_source\gradle\localMvnRepository\androidx\collection\collection\1.4.2\collection-1.4.2.jar
-            // - AndroidIDE\libs_source\gradle\localMvnRepository\androidx\lifecycle\lifecycle-common\2.8.7\lifecycle-common-2.8.7.jar
-            // - AndroidIDE\libs_source\gradle\localMvnRepository\androidx\annotation\annotation\1.8.1\annotation-1.8.1.jar
-            // - AndroidIDE\libs_source\gradle\localMvnRepository\org\jetbrains\kotlinx\kotlinx-coroutines-core\1.7.3\kotlinx-coroutines-core-1.7.3.jar
-            // And some others.
             resources.pickFirsts.add("nonJvmMain/default/linkdata/package_androidx/0_androidx.knm")
             resources.pickFirsts.add("nonJvmMain/default/linkdata/root_package/0_.knm")
             resources.pickFirsts.add("nonJvmMain/default/linkdata/module")
-
             resources.pickFirsts.add("nativeMain/default/linkdata/root_package/0_.knm")
             resources.pickFirsts.add("nativeMain/default/linkdata/module")
-
             resources.pickFirsts.add("commonMain/default/linkdata/root_package/0_.knm")
             resources.pickFirsts.add("commonMain/default/linkdata/module")
             resources.pickFirsts.add("commonMain/default/linkdata/package_androidx/0_androidx.knm")
-
             resources.pickFirsts.add("META-INF/kotlin-project-structure-metadata.json")
-
             resources.merges.add("commonMain/default/manifest")
             resources.merges.add("nonJvmMain/default/manifest")
             resources.merges.add("nativeMain/default/manifest")
@@ -160,6 +157,36 @@ tasks.withType<JavaCompile> {
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     kotlinOptions.jvmTarget = "17"
 }
+
+// --- FFmpeg/FFprobe download task ---
+// Downloads prebuilt arm64-v8a binaries from hzw1199/Android-FFmpeg-Prebuilt
+// and places them in jniLibs with the lib*.so naming Android requires.
+val ffmpegVersion = "9.0"
+val ffmpegRepo = "hzw1199/Android-FFmpeg-Prebuilt"
+val ffmpegBranch = "main"
+
+val downloadFFmpeg by tasks.registering {
+    val jniDir = file("src/main/jniLibs/arm64-v8a")
+    val ffmpegOut = File(jniDir, "libffmpeg.so")
+    val ffprobeOut = File(jniDir, "libffprobe.so")
+
+    outputs.files(ffmpegOut, ffprobeOut)
+
+    doLast {
+        jniDir.mkdirs()
+        val base = "https://raw.githubusercontent.com/$ffmpegRepo/$ffmpegBranch/ffmpeg-$ffmpegVersion/bin"
+        mapOf("ffmpeg" to ffmpegOut, "ffprobe" to ffprobeOut).forEach { (bin, out) ->
+            if (!out.exists()) {
+                logger.lifecycle("Downloading $bin ($ffmpegVersion) -> ${out.name}")
+                URI("$base/$bin").toURL().openStream().use { src ->
+                    out.outputStream().use { dst -> src.copyTo(dst) }
+                }
+            }
+        }
+    }
+}
+
+tasks.named("preBuild") { dependsOn(downloadFFmpeg) }
  
 
 dependencies {
