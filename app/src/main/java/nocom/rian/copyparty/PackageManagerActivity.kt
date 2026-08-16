@@ -297,93 +297,14 @@ def get_packages(site_packages_dir):
     }
 
     private fun runPipCommand(commandArgs: Array<String>) {
-        val context = this
-        Toast.makeText(context, "Running pip command... Check Log Viewer for details.", Toast.LENGTH_LONG).show()
-
+        Toast.makeText(this, "Running pip command... Check Log Viewer for details.", Toast.LENGTH_LONG).show()
         setUiEnabled(false)
-        Thread {
-            try {
-                if (!Python.isStarted()) {
-                    Python.start(AndroidPlatform(context.applicationContext))
-                }
-
-                val py = Python.getInstance()
-                val targetDir = File(filesDir, "site-packages").absolutePath
-
-                val pipRunnerCode = """
-import sys
-import runpy
-import importlib
-from java import jclass
-
-LogManager = jclass("nocom.rian.copyparty.LogManager")
-
-def execute_pip(args, target_path):
-    if target_path not in sys.path:
-        sys.path.insert(0, target_path)
-    importlib.invalidate_caches()
-    if hasattr(sys, 'path_importer_cache'):
-        sys.path_importer_cache.clear()
-        
-    old_argv = sys.argv
-    old_stdout = sys.stdout
-    old_stderr = sys.stderr
-    
-    class PipOutputRedirector(object):
-        def write(self, text):
-            if text:
-                LogManager.log(text)
-        def flush(self):
-            pass
-        def isatty(self):
-            return False
-    sys.stdout = PipOutputRedirector()
-    sys.stderr = PipOutputRedirector()
-    
-    try:
-        LogManager.log("[PIP] Running command: pip " + " ".join(args) + "\n")
-        sys.argv = ["pip"] + list(args)
-        runpy.run_module("pip", run_name="__main__")
-    except SystemExit as e:
-        if e.code == 0:
-            LogManager.log("\n[PIP] Operation completed successfully.\n")
-        else:
-            LogManager.log(f"\n[PIP] Operation failed with exit code: {e.code}\n")
-    except Exception as ex:
-        LogManager.log(f"\n[PIP] Error: {ex}\n")
-    finally:
-        sys.argv = old_argv
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
-                """.trimIndent()
-
-                // Register module safely inside sys.modules
-                val sysMod = py.getModule("sys")
-                val modulesDict = sysMod.get("modules")
-                var pipHelper = modulesDict?.callAttr("get", "pip_runner")
-                if (pipHelper == null) {
-                    val typesMod = py.getModule("types")
-                    pipHelper = typesMod.callAttr("ModuleType", "pip_runner")
-                    modulesDict?.callAttr("__setitem__", "pip_runner", pipHelper)
-                }
-
-                py.getModule("builtins").callAttr("exec", pipRunnerCode, pipHelper?.get("__dict__"))
-
-                // Invoke directly passing arrays/strings as parameters
-                pipHelper?.callAttr("execute_pip", commandArgs, targetDir)
-
-            } catch (e: Exception) {
-                Log.e("Copyparty", "Failed to run pip", e)
-                runOnUiThread {
-                    Toast.makeText(context, "Pip error: ${e.message}", Toast.LENGTH_LONG).show()
-                }
-            } finally {
-                runOnUiThread {
-                    setUiEnabled(true)
-                    refreshPackagesList()
-                }
+        PipRunner.run(this, commandArgs) { success ->
+            runOnUiThread {
+                setUiEnabled(true)
+                refreshPackagesList()
             }
-        }.start()
+        }
     }
 }
 

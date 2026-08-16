@@ -88,5 +88,12 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="Manage Python Libraries" />
+
+        <Button
+            android:id="@+id/btnCheckUpdates"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Check for Copyparty Updates" />
     </LinearLayout>
 </ScrollView>

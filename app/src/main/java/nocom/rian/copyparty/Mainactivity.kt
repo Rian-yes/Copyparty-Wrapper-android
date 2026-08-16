@@ -18,7 +18,13 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.appcompat.app.AlertDialog
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,7 +76,10 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, PackageManagerActivity::class.java)
             startActivity(intent)
         }
-
+        val btnCheckUpdates = findViewById<Button>(R.id.btnCheckUpdates)
+        btnCheckUpdates.setOnClickListener {
+            checkForCopypartyUpdates()
+        }
         // Request permissions on app launch
         checkStoragePermission()
         checkNotificationPermission()
@@ -193,4 +202,109 @@ class MainActivity : AppCompatActivity() {
             btnStart.text = "Start Copyparty Server"
         }
     }
+
+    private fun checkForCopypartyUpdates() {
+        val btnCheckUpdates = findViewById<Button>(R.id.btnCheckUpdates)
+        btnCheckUpdates.isEnabled = false
+        Toast.makeText(this, "Checking PyPI for Copyparty updates...", Toast.LENGTH_SHORT).show()
+
+        Thread {
+            try {
+                if (!Python.isStarted()) {
+                    Python.start(AndroidPlatform(applicationContext))
+                }
+                val py = Python.getInstance()
+                val globals = py.getModule("builtins").callAttr("dict")
+                
+                py.getModule("builtins").callAttr("exec", """
+                    import sys
+                    import os
+                    import importlib
+                    
+                    target_dir = os.path.join(sys.prefix, "files", "site-packages")
+                    if os.path.exists(target_dir) and target_dir not in sys.path:
+                        sys.path.insert(0, target_dir)
+                        
+                    importlib.invalidate_caches()
+                    if hasattr(sys, 'path_importer_cache'):
+                        sys.path_importer_cache.clear()
+                        
+                    # Remove cached copyparty modules so we query the actual disk version
+                    to_remove = [mod for mod in sys.modules if mod == 'copyparty' or mod.startswith('copyparty.')]
+                    for mod in to_remove:
+                        sys.modules.pop(mod, None)
+                        
+                    import importlib.metadata
+                    try:
+                        version = importlib.metadata.version('copyparty')
+                    except Exception:
+                        version = '1.20.20'
+                """.trimIndent(), globals)
+                
+                val currentVersion = globals.callAttr("get", "version").toString()
+
+                val conn = URL("https://pypi.org/pypi/copyparty/json").openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                if (conn.responseCode == 200) {
+                    val text = conn.inputStream.bufferedReader().use { it.readText() }
+                    val latestVersion = JSONObject(text).getJSONObject("info").getString("version")
+                    
+                    runOnUiThread {
+                        btnCheckUpdates.isEnabled = true
+                        if (latestVersion != currentVersion) {
+                            showUpdateDialog(currentVersion, latestVersion)
+                        } else {
+                            Toast.makeText(this@MainActivity, "Copyparty is up to date ($currentVersion)", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } else {
+                    runOnUiThread {
+                        btnCheckUpdates.isEnabled = true
+                        Toast.makeText(this@MainActivity, "Could not fetch updates from PyPI (HTTP ${conn.responseCode})", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    btnCheckUpdates.isEnabled = true
+                    Toast.makeText(this@MainActivity, "Failed to check for updates: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun showUpdateDialog(currentVersion: String, latestVersion: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Copyparty Update Available")
+            .setMessage("A newer version of Copyparty ($latestVersion) is available on PyPI.\n\nInstalled version: $currentVersion\n\nWould you like to download and install the update? The server service will be stopped during installation.")
+            .setPositiveButton("Update") { _, _ ->
+                performUpdate()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun performUpdate() {
+        val btnStart = findViewById<Button>(R.id.btnStart)
+        val serviceIntent = Intent(this, ServerService::class.java)
+        if (ServerService.isRunning) {
+            stopService(serviceIntent)
+            btnStart.text = "Start Copyparty Server"
+            Toast.makeText(this, "Stopping server for update...", Toast.LENGTH_SHORT).show()
+        }
+
+        Toast.makeText(this, "Updating Copyparty... Check Log Viewer for details.", Toast.LENGTH_LONG).show()
+        
+        val targetDir = File(filesDir, "site-packages").absolutePath
+        PipRunner.run(this, arrayOf("install", "--upgrade", "--target", targetDir, "copyparty")) { success ->
+            runOnUiThread {
+                if (success) {
+                    Toast.makeText(this@MainActivity, "Copyparty updated successfully! Start the server to apply changes.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "Copyparty update failed! Please check logs.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 }
+
