@@ -1,0 +1,93 @@
+name: Build FFmpeg for Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      ffmpeg_version:
+        description: 'FFmpeg version (tar release)'
+        default: '8.1.2'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r27c
+
+      - name: Install build deps
+        run: sudo apt-get update && sudo apt-get install -y nasm autoconf automake libtool pkg-config
+
+      - name: Clone ffmpeg-android-maker
+        run: git clone --depth 1 https://github.com/Javernaut/ffmpeg-android-maker.git
+
+      - name: Patch for static executables
+        run: |
+          cd ffmpeg-android-maker/scripts/ffmpeg
+          # Switch from shared to static libs + static executables
+          sed -i 's/--enable-shared/--enable-static/' build.sh
+          sed -i 's/--disable-static/--disable-shared/' build.sh
+          # Add flags for standalone static executables
+          sed -i '/--disable-vulkan/a\  --enable-small \\' build.sh
+
+      - name: Build FFmpeg with libwebp (arm64-v8a)
+        env:
+          ANDROID_SDK_HOME: ${{ env.ANDROID_HOME }}
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          cd ffmpeg-android-maker
+          bash ffmpeg-android-maker.sh \
+            --target-abis=arm64-v8a \
+            --source-tar=${{ github.event.inputs.ffmpeg_version }} \
+            --enable-libwebp \
+            --android-api-level=24
+
+      - name: Collect and strip binaries
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          STRIP="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          mkdir -p artifacts
+
+          # ffmpeg-android-maker puts executables in build/<abi>/bin/
+          for bin in ffmpeg ffprobe; do
+            src="ffmpeg-android-maker/build/arm64-v8a/bin/${bin}"
+            if [ -f "$src" ]; then
+              cp "$src" "artifacts/${bin}"
+              "$STRIP" --strip-unneeded "artifacts/${bin}"
+            else
+              echo "WARNING: $src not found, checking other locations..."
+              find ffmpeg-android-maker/build -name "$bin" -type f 2>/dev/null
+            fi
+          done
+
+          ls -la artifacts/
+          file artifacts/* || true
+
+      - name: Upload ffmpeg binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-android-arm64-v8a
+          path: artifacts/
+          retention-days: 90
+
+      - name: Create Release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ffmpeg-${{ github.event.inputs.ffmpeg_version }}
+          name: FFmpeg ${{ github.event.inputs.ffmpeg_version }} (Android arm64-v8a + libwebp)
+          files: |
+            artifacts/ffmpeg
+            artifacts/ffprobe
+          body: |
+            Static FFmpeg/FFprobe for Android arm64-v8a.
+            Built with libwebp encoder support (webp thumbnails).
+            NDK r27c, API level 24.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
