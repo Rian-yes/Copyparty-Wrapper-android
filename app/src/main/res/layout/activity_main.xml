@@ -81,5 +81,12 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="View Server Logs" />
+
+        <Button
+            android:id="@+id/btnManagePackages"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Manage Python Libraries" />
     </LinearLayout>
 </ScrollView>

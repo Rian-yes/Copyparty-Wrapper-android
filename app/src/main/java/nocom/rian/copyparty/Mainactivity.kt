@@ -65,6 +65,11 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, LogViewerActivity::class.java)
             startActivity(intent)
         }
+        val btnManagePackages = findViewById<Button>(R.id.btnManagePackages)
+        btnManagePackages.setOnClickListener {
+            val intent = Intent(this, PackageManagerActivity::class.java)
+            startActivity(intent)
+        }
 
         // Request permissions on app launch
         checkStoragePermission()

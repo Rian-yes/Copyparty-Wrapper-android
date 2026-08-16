@@ -27,7 +27,6 @@ class ConfigEditorActivity : AppCompatActivity() {
         val btnSave = findViewById<Button>(R.id.btnSave)
         val btnCancel = findViewById<Button>(R.id.btnCancel)
         val btnImportFile = findViewById<Button>(R.id.btnImportFile)
-        val btnManagePackages = findViewById<Button>(R.id.btnManagePackages)
 
         val configFile = File(filesDir, "copyparty.conf")
 
@@ -60,10 +59,6 @@ class ConfigEditorActivity : AppCompatActivity() {
             startActivityForResult(intent, 103)
         }
 
-        btnManagePackages.setOnClickListener {
-            val intent = Intent(this, PackageManagerActivity::class.java)
-            startActivity(intent)
-        }
 
         btnSave.setOnClickListener {
             val content = etConfigContent.text.toString()

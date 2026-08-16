@@ -16,6 +16,7 @@ object LogManager {
                 logs.removeAt(0)
             }
         }
+        android.util.Log.d("Copyparty", message)
         onLogListener?.invoke(message)
     }
     

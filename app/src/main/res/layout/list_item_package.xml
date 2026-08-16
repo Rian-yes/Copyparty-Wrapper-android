@@ -1,27 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="8dp">
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/tvPackageInfo"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_alignParentLeft="true"
-        android:layout_centerVertical="true"
+        android:layout_weight="1"
+        android:textColor="?android:attr/textColorPrimary"
         android:textSize="16sp" />
 
-    <Button
+    <TextView
         android:id="@+id/btnUninstallPackage"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentRight="true"
-        android:layout_centerVertical="true"
-        android:text="-"
-        style="?android:attr/buttonStyleSmall"
-        android:minWidth="40dp"
-        android:minHeight="40dp"
-        android:textColor="#FF0000" />
-
-</RelativeLayout>
+        android:padding="8dp"
+        android:text="Uninstall"
+        android:textColor="#FF3B30"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true" />
+</LinearLayout>
