@@ -73,10 +73,10 @@ jobs:
           STRIP="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
           ABIS=("arm64-v8a" "armeabi-v7a" "x86" "x86_64")
 
-          mkdir -p dist
+          mkdir -p artifacts
 
           for abi in "${ABIS[@]}"; do
-            TARGET_DIR="dist/${abi}"
+            TARGET_DIR="artifacts/${abi}"
             mkdir -p "$TARGET_DIR"
 
             # Search and copy produced ffmpeg/ffprobe binaries
@@ -91,15 +91,26 @@ jobs:
             done
           done
 
-          # Archive outputs
-          cd dist
-          zip -r ../ffmpeg-android-binaries.zip ./*
-          cd ..
+          # Create a single archive of all compiled ABIs
+          zip -r ffmpeg-android-binaries.zip artifacts/*
 
-      - name: Create GitHub Release with Binaries
+      - name: Upload Artifacts to Action Run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-android-binaries
+          path: ffmpeg-android-binaries.zip
+          retention-days: 90
+
+      - name: Create Release
+        if: success()
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
           tag_name: ffmpeg-v${{ inputs.ffmpeg_version || '7.1' }}
           name: FFmpeg Android Binaries (v${{ inputs.ffmpeg_version || '7.1' }})
           files: ffmpeg-android-binaries.zip
+          body: |
+            Minimal FFmpeg/FFprobe binaries compiled for Copyparty.
+            Supported ABIs: arm64-v8a, armeabi-v7a, x86, x86_64.
+            Includes libwebp, thumbnailing filters, and http/https/pipe protocol support.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
