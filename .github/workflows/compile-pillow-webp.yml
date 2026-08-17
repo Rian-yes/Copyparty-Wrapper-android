@@ -74,7 +74,7 @@ jobs:
           EOF
           chmod +x packages/chaquopy-libwebp/build.sh
 
-          # 2. Modify Pillow package recipe to require chaquopy-libwebp
+          # 2. Modify Pillow package recipe to require chaquopy-libwebp and other libs for full support
           cat << 'EOF' > packages/pillow/meta.yaml
           package:
             name: pillow
@@ -97,15 +97,26 @@ jobs:
         run: |
           cd chaquopy_src/server/pypi
           
+          # Remove cibuildwheel from requirements (not needed for Python 3.10)
+          sed -i '/cibuildwheel/d' requirements.txt
+          
           # Activate virtualenv for dependencies
           python -m venv build_env
           source build_env/bin/activate
           pip install -r requirements.txt
-          
           # Export env variables for build-wheel script
           export ANDROID_HOME=$ANDROID_HOME
           export ANDROID_NDK=$ANDROID_NDK_ROOT
           
+          # Download prebuilt host dependencies from Chaquopy's repo
+          ABI_UNDER=$(echo "${{ matrix.abi }}" | tr '-' '_')
+          mkdir -p dist/chaquopy-libjpeg
+          curl -L "https://chaquo.com/pypi-13.1/chaquopy-libjpeg/chaquopy_libjpeg-1.5.3-1-py3-none-android_21_${ABI_UNDER}.whl" \
+               -o "dist/chaquopy-libjpeg/chaquopy_libjpeg-1.5.3-1-py3-none-android_21_${ABI_UNDER}.whl"
+               
+          mkdir -p dist/chaquopy-freetype
+          curl -L "https://chaquo.com/pypi-13.1/chaquopy-freetype/chaquopy_freetype-2.9.1-2-py3-none-android_21_${ABI_UNDER}.whl" \
+               -o "dist/chaquopy-freetype/chaquopy_freetype-2.9.1-2-py3-none-android_21_${ABI_UNDER}.whl"
           # Run the builder
           ./build-wheel.py --python 3.10 --abi ${{ matrix.abi }} chaquopy-libwebp
           ./build-wheel.py --python 3.10 --abi ${{ matrix.abi }} pillow
