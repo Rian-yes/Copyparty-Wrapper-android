@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -100,7 +100,7 @@ jobs:
           cp dist/*.whl ../output_wheels/
 
       - name: Upload Wheel Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pillow-wheel-${{ matrix.abi }}
           path: output_wheels/*.whl
@@ -110,10 +110,10 @@ jobs:
     needs: build-pillow-matrix
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Download all wheels
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: downloaded_wheels
 
