@@ -1,4 +1,4 @@
-name: Build FFmpeg for Android
+name: Build Minimal FFmpeg for Copyparty (Android)
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       ffmpeg_version:
-        description: 'FFmpeg version (tar release)'
-        default: '8.1.2'
+        description: 'FFmpeg version (tar release, e.g., 9.0.1, 7.1.5, 6.1.6)'
+        default: '9.0.1'
         required: true
 
 jobs:
@@ -15,8 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
@@ -24,67 +26,83 @@ jobs:
         with:
           ndk-version: r27c
 
-      - name: Install build deps
-        run: sudo apt-get update && sudo apt-get install -y nasm autoconf automake libtool pkg-config
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm autoconf automake libtool pkg-config zip
 
       - name: Clone ffmpeg-android-maker
         run: git clone --depth 1 https://github.com/Javernaut/ffmpeg-android-maker.git
 
-      - name: Patch for static executables
+      - name: Patch flags for static executables & size optimization
         run: |
           cd ffmpeg-android-maker/scripts/ffmpeg
-          # Ensure CLI executables (ffmpeg, ffprobe) and static libs are built
+          
+          # Force static libraries and build CLI binaries (ffmpeg & ffprobe)
           sed -i 's/--enable-shared/--enable-static/' build.sh
           sed -i 's/--disable-static/--disable-shared/' build.sh
-          sed -i '/--disable-vulkan/a\  --enable-ffmpeg --enable-ffprobe --enable-small \\' build.sh
+          
+          # Inject size-reduction and comprehensive protocol/codec flags for Copyparty
+          sed -i '/--disable-vulkan/a\
+            --enable-ffmpeg \\\n\
+            --enable-ffprobe \\\n\
+            --enable-small \\\n\
+            --disable-doc \\\n\
+            --disable-debug \\\n\
+            --disable-postproc \\\n\
+            --enable-protocol=file,http,https,pipe \\\n\
+            --enable-demuxer=image2,image2pipe,mov,matroska,avi,mp3,aac,flac,ogg,wav,webp \\\n\
+            --enable-decoder=h264,hevc,vp8,vp9,av1,mjpeg,png,webp,mp3,aac,flac,vorbis,opus \\\n\
+            --enable-encoder=mjpeg,png,webp,aac \\\n\
+            --enable-parser=h264,hevc,vp8,vp9,av1,mjpeg,png,webp,aac,flac,mpegaudio,opus,vorbis \\\n\
+            --enable-filter=scale,aresample,format,thumbnail,aformat,showwavespic \\' build.sh
 
-      - name: Build FFmpeg with libwebp (arm64-v8a)
+      - name: Build FFmpeg with libwebp
         run: |
           export ANDROID_SDK_HOME="$ANDROID_HOME"
           export ANDROID_NDK_HOME="${{ steps.setup-ndk.outputs.ndk-path }}"
           cd ffmpeg-android-maker
+          
           bash ffmpeg-android-maker.sh \
-            --target-abis=arm64-v8a \
-            --source-tar=${{ inputs.ffmpeg_version || '8.1.2' }} \
+            --target-abis=arm64-v8a,armeabi-v7a,x86,x86_64 \
+            --source-tar=${{ inputs.ffmpeg_version || '9.0.1' }} \
             --enable-libwebp \
             --android-api-level=24
 
-      - name: Collect and strip binaries
+      - name: Collect, strip, and organize binaries
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           STRIP="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-          mkdir -p artifacts
+          ABIS=("arm64-v8a" "armeabi-v7a" "x86" "x86_64")
 
-          # Search and collect all produced ffmpeg, ffprobe binaries and .so files
-          find ffmpeg-android-maker/ -type f \( -name "ffmpeg" -o -name "ffprobe" -o -name "*.so" \) -exec cp {} artifacts/ \;
+          mkdir -p dist
 
-          # Strip debug symbols if binaries exist
-          for f in artifacts/*; do
-            if [ -f "$f" ]; then
-              "$STRIP" --strip-unneeded "$f" 2>/dev/null || true
-            fi
+          for abi in "${ABIS[@]}"; do
+            TARGET_DIR="dist/${abi}"
+            mkdir -p "$TARGET_DIR"
+
+            # Search and copy produced ffmpeg/ffprobe binaries
+            find ffmpeg-android-maker/ -type f -path "*/${abi}/*" \( -name "ffmpeg" -o -name "ffprobe" \) -exec cp {} "$TARGET_DIR/" \; 2>/devnull || true
+
+            # Strip all symbols to reduce binary size to the absolute minimum
+            for f in "$TARGET_DIR"/*; do
+              if [ -f "$f" ]; then
+                echo "Stripping $f..."
+                "$STRIP" --strip-all "$f" 2>/devnull || true
+              fi
+            done
           done
 
-          ls -la artifacts/
-          file artifacts/* || true
-      - name: Upload ffmpeg binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-android-arm64-v8a
-          path: artifacts/
-          retention-days: 90
+          # Archive outputs
+          cd dist
+          zip -r ../ffmpeg-android-binaries.zip ./*
+          cd ..
 
-      - name: Create Release
-        if: success()
+      - name: Create GitHub Release with Binaries
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ffmpeg-${{ inputs.ffmpeg_version || '8.1.2' }}
-          name: FFmpeg ${{ inputs.ffmpeg_version || '8.1.2' }} (Android arm64-v8a + libwebp)
-          files: artifacts/*
-          body: |
-            Static FFmpeg/FFprobe for Android arm64-v8a.
-            Built with libwebp encoder support (webp thumbnails).
-            NDK r27c, API level 24.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ffmpeg-v${{ inputs.ffmpeg_version || '9.0.1' }}
+          name: FFmpeg Android Binaries (v${{ inputs.ffmpeg_version || '9.0.1' }})
+          files: ffmpeg-android-binaries.zip
