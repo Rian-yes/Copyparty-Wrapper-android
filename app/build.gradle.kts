@@ -66,14 +66,15 @@ android {
             defaultConfig {
                 version = "3.10"
                 pip {
-                    install("Pillow")
-                    install("mutagen")
+                    install("jinja2")
+                    install("argon2-cffi")
+                    install("pyftpdlib")
+                    install("pyopenssl==24.0.0")
+                    install("paramiko==2.12.0")
                     install("cryptography==42.0.8")
                     install("bcrypt==3.1.7")
                     install("pyzmq==24.0.1")
-                    install("paramiko==2.12.0")
-                    install("pyopenssl==24.0.0")
-                    install("copyparty[all,audiotags]")
+                    install("copyparty")
                     install("pip")
                 }
             }
