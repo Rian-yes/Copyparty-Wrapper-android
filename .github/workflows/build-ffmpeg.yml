@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       ffmpeg_version:
-        description: 'FFmpeg version (tar release, e.g., 9.0.1, 7.1.5, 6.1.6)'
-        default: '9.0.1'
+        description: 'FFmpeg version (e.g., 7.1, 7.0.2, 6.1.2)'
+        default: '7.1'
         required: true
 
 jobs:
@@ -34,28 +34,12 @@ jobs:
       - name: Clone ffmpeg-android-maker
         run: git clone --depth 1 https://github.com/Javernaut/ffmpeg-android-maker.git
 
-      - name: Patch flags for static executables & size optimization
+      - name: Patch ffmpeg-android-maker to build CLI executables
         run: |
           cd ffmpeg-android-maker/scripts/ffmpeg
-          
-          # Force static libraries and build CLI binaries (ffmpeg & ffprobe)
+          # Enable static libraries and static binaries (ffmpeg & ffprobe)
           sed -i 's/--enable-shared/--enable-static/' build.sh
           sed -i 's/--disable-static/--disable-shared/' build.sh
-          
-          # Inject size-reduction and comprehensive protocol/codec flags for Copyparty
-          sed -i '/--disable-vulkan/a\
-            --enable-ffmpeg \\\n\
-            --enable-ffprobe \\\n\
-            --enable-small \\\n\
-            --disable-doc \\\n\
-            --disable-debug \\\n\
-            --disable-postproc \\\n\
-            --enable-protocol=file,http,https,pipe \\\n\
-            --enable-demuxer=image2,image2pipe,mov,matroska,avi,mp3,aac,flac,ogg,wav,webp \\\n\
-            --enable-decoder=h264,hevc,vp8,vp9,av1,mjpeg,png,webp,mp3,aac,flac,vorbis,opus \\\n\
-            --enable-encoder=mjpeg,png,webp,aac \\\n\
-            --enable-parser=h264,hevc,vp8,vp9,av1,mjpeg,png,webp,aac,flac,mpegaudio,opus,vorbis \\\n\
-            --enable-filter=scale,aresample,format,thumbnail,aformat,showwavespic \\' build.sh
 
       - name: Build FFmpeg with libwebp
         run: |
@@ -65,9 +49,22 @@ jobs:
           
           bash ffmpeg-android-maker.sh \
             --target-abis=arm64-v8a,armeabi-v7a,x86,x86_64 \
-            --source-tar=${{ inputs.ffmpeg_version || '9.0.1' }} \
+            --source-tar=${{ inputs.ffmpeg_version || '7.1' }} \
             --enable-libwebp \
-            --android-api-level=24
+            --android-api-level=24 \
+            --extra-ffmpeg-configure-flags="\
+              --enable-ffmpeg \
+              --enable-ffprobe \
+              --enable-small \
+              --disable-doc \
+              --disable-debug \
+              --disable-postproc \
+              --enable-protocol=file,http,https,pipe \
+              --enable-demuxer=image2,image2pipe,mov,matroska,avi,mp3,aac,flac,ogg,wav,webp \
+              --enable-decoder=h264,hevc,vp8,vp9,av1,mjpeg,png,webp,mp3,aac,flac,vorbis,opus \
+              --enable-encoder=mjpeg,png,webp,aac \
+              --enable-parser=h264,hevc,vp8,vp9,av1,mjpeg,png,webp,aac,flac,mpegaudio,opus,vorbis \
+              --enable-filter=scale,aresample,format,thumbnail,aformat,showwavespic"
 
       - name: Collect, strip, and organize binaries
         env:
@@ -85,7 +82,7 @@ jobs:
             # Search and copy produced ffmpeg/ffprobe binaries
             find ffmpeg-android-maker/ -type f -path "*/${abi}/*" \( -name "ffmpeg" -o -name "ffprobe" \) -exec cp {} "$TARGET_DIR/" \; 2>/devnull || true
 
-            # Strip all symbols to reduce binary size to the absolute minimum
+            # Strip all symbols to reduce binary size
             for f in "$TARGET_DIR"/*; do
               if [ -f "$f" ]; then
                 echo "Stripping $f..."
@@ -103,6 +100,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ffmpeg-v${{ inputs.ffmpeg_version || '9.0.1' }}
-          name: FFmpeg Android Binaries (v${{ inputs.ffmpeg_version || '9.0.1' }})
+          tag_name: ffmpeg-v${{ inputs.ffmpeg_version || '7.1' }}
+          name: FFmpeg Android Binaries (v${{ inputs.ffmpeg_version || '7.1' }})
           files: ffmpeg-android-binaries.zip
