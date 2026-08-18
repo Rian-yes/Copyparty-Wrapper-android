@@ -47,11 +47,16 @@ class MainActivity : AppCompatActivity() {
         val sharedPref = getSharedPreferences("copyparty_prefs", Context.MODE_PRIVATE)
         cbUseCustomConfig.isChecked = sharedPref.getBoolean("use_custom_config", false)
 
-        val defaultArgs = "--sig-thr -j 1"
+        val defaultArgs = "--sig-thr"
         val savedArgs = sharedPref.getString("custom_arguments", defaultArgs)
         
-        // Reset old defaults containing gather-threads, no-vhash, or --th-no-webp to defaultArgs
-        val finalArgs = if (savedArgs != null && (savedArgs.contains("gather-threads") || savedArgs.contains("no-vhash") || savedArgs.contains("--th-no-webp"))) defaultArgs else (savedArgs ?: defaultArgs)
+        // Reset old defaults containing gather-threads, no-vhash, --th-no-webp, or -j 1 to defaultArgs
+        val finalArgs = if (savedArgs != null && (
+            savedArgs.contains("gather-threads") || 
+            savedArgs.contains("no-vhash") || 
+            savedArgs.contains("--th-no-webp") || 
+            savedArgs.contains("-j 1")
+        )) defaultArgs else (savedArgs ?: defaultArgs)
         etCustomArgs.setText(finalArgs)
 
         btnResetArgs.setOnClickListener {

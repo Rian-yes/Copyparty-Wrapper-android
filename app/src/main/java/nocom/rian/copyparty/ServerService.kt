@@ -66,16 +66,16 @@ class ServerService : Service() {
                 for (tool in arrayOf("ffmpeg", "ffprobe")) {
                     val src = File(nativeLibDir, "lib$tool.so")
                     val link = File(binDir, tool)
-                    // recreate if stale (e.g. app update changed nativeLibDir)
-                    if (link.exists() && !src.exists()) link.delete()
-                    if (!link.exists() && src.exists()) {
+                    // always delete link first to avoid EEXIST on dangling symlinks from app updates
+                    link.delete()
+                    if (src.exists()) {
                         try {
                             Os.symlink(src.absolutePath, link.absolutePath)
                             Log.i("Copyparty", "$tool linked: ${src.absolutePath}")
                         } catch (e: Exception) {
                             Log.w("Copyparty", "Failed to symlink $tool", e)
                         }
-                    } else if (!src.exists()) {
+                    } else {
                         Log.w("Copyparty", "$tool not found at ${src.absolutePath}")
                     }
                 }
@@ -143,20 +143,23 @@ class ServerService : Service() {
 
                     signal.signal = lambda *a, **kw: None
 
-                    # ponytail: serialize subprocess spawning to prevent multiple ffmpeg/ffprobe OOMs
+                    # ponytail: limit concurrent ffmpeg/ffprobe instances to 4 to prevent OOM
                     import subprocess
                     _orig_Popen = subprocess.Popen
-                    _popen_lock = threading.Lock()
+                    _popen_semaphore = threading.Semaphore(4)
                     class _LockedPopen(_orig_Popen):
                         def __init__(self, args, *nargs, **kwargs):
+                            is_ffmpeg = False
+                            is_media_tool = False
                             try:
-                                is_ffmpeg = False
                                 if isinstance(args, (list, tuple)) and len(args) > 0:
                                     cmd0 = args[0]
                                     if isinstance(cmd0, bytes):
                                         is_ffmpeg = b"ffmpeg" in cmd0
+                                        is_media_tool = b"ffmpeg" in cmd0 or b"ffprobe" in cmd0
                                     elif isinstance(cmd0, str):
                                         is_ffmpeg = "ffmpeg" in cmd0
+                                        is_media_tool = "ffmpeg" in cmd0 or "ffprobe" in cmd0
                                 if is_ffmpeg:
                                     args = list(args)
                                     if isinstance(args[0], bytes):
@@ -167,21 +170,25 @@ class ServerService : Service() {
                                         args.insert(2, "1")
                             except Exception:
                                 pass
-                            _popen_lock.acquire()
+                            self._is_media_tool = is_media_tool
+                            if self._is_media_tool:
+                                _popen_semaphore.acquire()
                             self._released = False
                             try:
                                 _orig_Popen.__init__(self, args, *nargs, **kwargs)
                             except Exception:
-                                _popen_lock.release()
+                                if self._is_media_tool:
+                                    _popen_semaphore.release()
                                 self._released = True
                                 raise
                         def _release_lock(self):
                             if not self._released:
                                 self._released = True
-                                try:
-                                    _popen_lock.release()
-                                except RuntimeError:
-                                    pass
+                                if self._is_media_tool:
+                                    try:
+                                        _popen_semaphore.release()
+                                    except RuntimeError:
+                                        pass
                         def wait(self, *args, **kwargs):
                             try:
                                 return _orig_Popen.wait(self, *args, **kwargs)
