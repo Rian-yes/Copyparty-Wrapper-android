@@ -90,7 +90,7 @@ jobs:
           cat << 'EOF' > packages/pillow/build.sh
           #!/bin/bash
           set -eu
-          sed -i 's/if sys.platform == "ios":/if sys.platform == "ios" or True:/g' setup.py
+          sed -i -E "s/sys\.platform\s*==\s*['\"]ios['\"]/sys.platform == 'ios' or True/g" setup.py
           export PIL_NO_LCMS=1
           export PIL_NO_JPEG2K=1
           pip wheel --no-deps --no-build-isolation --check-build-dependencies .

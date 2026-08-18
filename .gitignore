@@ -85,3 +85,5 @@ lint/tmp/
 
 #Custom
 test-builds/
+gradle.bat
+uidump.xml
