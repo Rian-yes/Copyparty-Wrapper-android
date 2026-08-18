@@ -93,13 +93,17 @@ jobs:
               - chaquopy-libwebp 1.3.2
           EOF
 
-          # Create build.sh for Pillow to patch setup.py
-          cat << 'EOF' > packages/pillow/build.sh
-          #!/bin/bash
-          set -eu
-          sed -i 's/libs = \[webp, webp + "mux", webp + "demux"\]/libs = \[webp, webp + "mux", webp + "demux", "sharpyuv"\]/g' setup.py
+          # Create patch to link sharpyuv
+          mkdir -p packages/pillow/patches
+          cat << 'EOF' > packages/pillow/patches/setup.patch
+          --- a/setup.py
+          +++ b/setup.py
+          @@ -923,4 +923,4 @@
+                   webp = feature.get("webp")
+                   if isinstance(webp, str):
+          -            libs = [webp, webp + "mux", webp + "demux"]
+          +            libs = [webp, webp + "mux", webp + "demux", "sharpyuv"]
           EOF
-          chmod +x packages/pillow/build.sh
       - name: Download Chaquopy Compilation target
         run: |
           cd chaquopy_src
