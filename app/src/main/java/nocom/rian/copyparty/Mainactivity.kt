@@ -37,12 +37,25 @@ class MainActivity : AppCompatActivity() {
         val etSharedPath = findViewById<EditText>(R.id.etSharedPath)
         val etUploadHook = findViewById<EditText>(R.id.etUploadHook)
         val cbUseCustomConfig = findViewById<CheckBox>(R.id.cbUseCustomConfig)
+        val etCustomArgs = findViewById<EditText>(R.id.etCustomArgs)
+        val btnResetArgs = findViewById<Button>(R.id.btnResetArgs)
         val btnEditConfig = findViewById<Button>(R.id.btnEditConfig)
         val btnStart = findViewById<Button>(R.id.btnStart)
 
         // Load custom config preference
         val sharedPref = getSharedPreferences("copyparty_prefs", Context.MODE_PRIVATE)
         cbUseCustomConfig.isChecked = sharedPref.getBoolean("use_custom_config", false)
+
+        val defaultArgs = "--sig-thr -j 1"
+        val savedArgs = sharedPref.getString("custom_arguments", defaultArgs)
+        // ponytail: if user had old default with gather-threads, no-vhash, or --th-no-webp, replace it
+        val finalArgs = if (savedArgs != null && (savedArgs.contains("gather-threads") || savedArgs.contains("no-vhash") || savedArgs.contains("--th-no-webp"))) defaultArgs else (savedArgs ?: defaultArgs)
+        etCustomArgs.setText(finalArgs)
+
+        btnResetArgs.setOnClickListener {
+            etCustomArgs.setText(defaultArgs)
+            sharedPref.edit().putString("custom_arguments", defaultArgs).apply()
+        }
 
         // Enable/disable form inputs based on check state
         val initEnabled = !cbUseCustomConfig.isChecked
@@ -134,8 +147,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            val customArgs = etCustomArgs.text.toString()
+            sharedPref.edit().putString("custom_arguments", customArgs).apply()
+
             // Launch Server Service
             serviceIntent.putExtra("CONFIG_PATH", configFile.absolutePath)
+            serviceIntent.putExtra("CUSTOM_ARGS", customArgs)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent)
             } else {

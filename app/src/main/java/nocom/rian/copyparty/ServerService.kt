@@ -38,6 +38,7 @@ class ServerService : Service() {
         }
 
         val configPath = intent?.getStringExtra("CONFIG_PATH")
+        val customArgs = intent?.getStringExtra("CUSTOM_ARGS") ?: "--sig-thr -j 1"
         if (configPath == null) {
             Log.w("Copyparty", "ServerService started with null config path")
             stopSelf()
@@ -79,7 +80,11 @@ class ServerService : Service() {
 
                 val py = Python.getInstance()
                 val sys = py.getModule("sys")
-                sys.put("argv", arrayOf("copyparty", "-c", configPath, "--sig-thr"))
+                
+                val argvList = mutableListOf("copyparty", "-c", configPath)
+                val customArgsList = customArgs.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
+                argvList.addAll(customArgsList)
+                sys.put("argv", argvList.toTypedArray())
 
                 val globals = py.getModule("builtins").callAttr("dict")
                 py.getModule("builtins").callAttr("exec", """
@@ -89,6 +94,8 @@ class ServerService : Service() {
                     import signal
                     import threading
                     from java import jclass
+
+                    LogManager = jclass("nocom.rian.copyparty.LogManager")
 
                     # prepend bundled ffmpeg/ffprobe bin dir to PATH
                     _bin = "${binDir.absolutePath}"
@@ -103,8 +110,34 @@ class ServerService : Service() {
                     if hasattr(sys, 'path_importer_cache'):
                         sys.path_importer_cache.clear()
 
-                    LogManager = jclass("nocom.rian.copyparty.LogManager")
-
+                    try:
+                        from PIL import Image
+                        from io import BytesIO
+                        im = Image.new("RGB", (10, 10))
+                        buf = BytesIO()
+                        im.save(buf, format="jpeg")
+                        LogManager.log("PIL TEST JPEG: successfully saved JPEG! Bytes: {}\n".format(len(buf.getvalue())))
+                        
+                        buf2 = BytesIO()
+                        im.save(buf2, format="png")
+                        LogManager.log("PIL TEST PNG: successfully saved PNG! Bytes: {}\n".format(len(buf2.getvalue())))
+                        
+                        LogManager.log("PIL REGISTERED EXTENSIONS: {}\n".format(list(Image.registered_extensions().keys())))
+                        
+                        # WebP runtime verification
+                        from PIL import features
+                        has_webp_module = features.check_module("webp")
+                        has_webp_decoder = features.check("webp")
+                        LogManager.log("[Pillow Diagnostic] WebP module loaded: {}\n".format(has_webp_module))
+                        LogManager.log("[Pillow Diagnostic] WebP support loaded: {}\n".format(has_webp_decoder))
+                        if not (has_webp_module and has_webp_decoder):
+                            raise RuntimeError(
+                                "Pillow was compiled without libwebp support! "
+                                "Ensure Chaquopy wheels are up-to-date."
+                            )
+                    except Exception as e:
+                        import traceback
+                        LogManager.log("PIL TEST FULL failed: {}. Traceback: {}\n".format(e, traceback.format_exc()))
                     class _LogRedirector:
                         def __init__(self, orig):
                             self._orig = orig
@@ -127,6 +160,47 @@ class ServerService : Service() {
 
                     signal.signal = lambda *a, **kw: None
 
+                    # ponytail: serialize subprocess spawning to prevent multiple ffmpeg/ffprobe OOMs
+                    import subprocess
+                    _orig_Popen = subprocess.Popen
+                    _popen_lock = threading.Lock()
+                    class _LockedPopen(_orig_Popen):
+                        def __init__(self, *args, **kwargs):
+                            _popen_lock.acquire()
+                            self._released = False
+                            try:
+                                _orig_Popen.__init__(self, *args, **kwargs)
+                            except Exception:
+                                _popen_lock.release()
+                                self._released = True
+                                raise
+                        def _release_lock(self):
+                            if not self._released:
+                                self._released = True
+                                try:
+                                    _popen_lock.release()
+                                except RuntimeError:
+                                    pass
+                        def wait(self, *args, **kwargs):
+                            try:
+                                return _orig_Popen.wait(self, *args, **kwargs)
+                            finally:
+                                self._release_lock()
+                        def communicate(self, *args, **kwargs):
+                            try:
+                                return _orig_Popen.communicate(self, *args, **kwargs)
+                            finally:
+                                self._release_lock()
+                        def poll(self, *args, **kwargs):
+                            res = _orig_Popen.poll(self, *args, **kwargs)
+                            if res is not None:
+                                self._release_lock()
+                            return res
+                        def __del__(self):
+                            self._release_lock()
+                            if hasattr(_orig_Popen, '__del__'):
+                                _orig_Popen.__del__(self)
+                    subprocess.Popen = _LockedPopen
                     import socket
                     _orig_sock_init = getattr(socket.socket, '_orig_sock_init', socket.socket.__init__)
                     socket.socket._orig_sock_init = _orig_sock_init

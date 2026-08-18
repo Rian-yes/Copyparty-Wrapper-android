@@ -74,6 +74,8 @@ android {
                     install("cryptography==42.0.8")
                     install("bcrypt==3.1.7")
                     install("pyzmq==24.0.1")
+                    install("pillow==11.0.0")
+                    install("mutagen")
                     install("copyparty")
                     install("pip")
                 }

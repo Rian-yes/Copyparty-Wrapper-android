@@ -62,6 +62,32 @@
             android:layout_marginTop="8dp"
             android:text="Use Custom Config File" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Additional CLI Arguments:"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etCustomArgs"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="e.g. --sig-thr -j 1 --gather-threads 1" />
+
+            <Button
+                android:id="@+id/btnResetArgs"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Reset" />
+        </LinearLayout>
+
         <Button
             android:id="@+id/btnEditConfig"
             android:layout_width="match_parent"
