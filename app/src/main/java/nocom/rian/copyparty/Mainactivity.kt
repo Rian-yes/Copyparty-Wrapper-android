@@ -326,15 +326,4 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
-Runner.run(this, arrayOf("install", "--upgrade", "--target", targetDir, "copyparty")) { success ->
-            runOnUiThread {
-                if (success) {
-                    Toast.makeText(this@MainActivity, "Copyparty updated successfully! Start the server to apply changes.", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(this@MainActivity, "Copyparty update failed! Please check logs.", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
-}
 
