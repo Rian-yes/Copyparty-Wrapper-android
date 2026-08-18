@@ -223,7 +223,6 @@ class ServerService : Service() {
 
                     import copyparty.svchub
                     _orig_hub_init = getattr(copyparty.svchub.SvcHub, '_orig_hub_init', copyparty.svchub.SvcHub.__init__)
-                    copyparty.svchub.SvcHub.__init__ = _patched_init
                     def _patched_init(self, *a, **kw):
                         _orig_hub_init(self, *a, **kw)
                         copyparty.svchub.active_hub = self
