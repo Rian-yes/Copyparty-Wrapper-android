@@ -59,9 +59,6 @@ android {
         vectorDrawables { 
             useSupportLibrary = true
         }
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
         chaquopy {
             defaultConfig {
                 version = "3.10"
@@ -83,6 +80,38 @@ android {
             }
         }
 
+    }
+
+    flavorDimensions += "abi"
+    productFlavors {
+        create("arm32") {
+            dimension = "abi"
+            ndk {
+                abiFilters += "armeabi-v7a"
+            }
+            versionCode = 1000 + (defaultConfig.versionCode ?: 1)
+        }
+        create("arm64") {
+            dimension = "abi"
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
+            versionCode = 2000 + (defaultConfig.versionCode ?: 1)
+        }
+        create("x86") {
+            dimension = "abi"
+            ndk {
+                abiFilters += "x86"
+            }
+            versionCode = 3000 + (defaultConfig.versionCode ?: 1)
+        }
+        create("x86_64") {
+            dimension = "abi"
+            ndk {
+                abiFilters += "x86_64"
+            }
+            versionCode = 4000 + (defaultConfig.versionCode ?: 1)
+        }
     }
     
     compileOptions {
@@ -205,3 +234,4 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.7.0")
 
 }
+
