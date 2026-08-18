@@ -86,6 +86,16 @@ jobs:
               - chaquopy-libwebp 1.3.2
           EOF
 
+          # Create build.sh for Pillow to patch setup.py and disable lcms/jpeg2k
+          cat << 'EOF' > packages/pillow/build.sh
+          #!/bin/bash
+          set -eu
+          sed -i 's/if sys.platform == "ios":/if sys.platform == "ios" or True:/g' setup.py
+          export PIL_NO_LCMS=1
+          export PIL_NO_JPEG2K=1
+          pip wheel --no-deps --no-build-isolation --check-build-dependencies .
+          EOF
+          chmod +x packages/pillow/build.sh
       - name: Download Chaquopy Compilation target
         run: |
           cd chaquopy_src
