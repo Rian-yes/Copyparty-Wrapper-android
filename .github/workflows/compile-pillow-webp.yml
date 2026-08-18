@@ -132,7 +132,7 @@ jobs:
           
           # Copy outputs
           mkdir -p ../../../output_wheels
-          cp dist/*.whl ../../../output_wheels/
+          find dist -name "*.whl" -exec cp {} ../../../output_wheels/ \;
 
       - name: Upload Wheel Artifact
         uses: actions/upload-artifact@v4
