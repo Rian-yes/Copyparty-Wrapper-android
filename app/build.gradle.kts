@@ -66,6 +66,7 @@ android {
             defaultConfig {
                 version = "3.10"
                 pip {
+                    options("--find-links", "libs")
                     install("jinja2")
                     install("argon2-cffi")
                     install("pyftpdlib")
