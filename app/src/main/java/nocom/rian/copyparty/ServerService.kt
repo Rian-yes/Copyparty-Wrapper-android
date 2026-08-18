@@ -38,9 +38,11 @@ class ServerService : Service() {
         }
 
         val configPath = intent?.getStringExtra("CONFIG_PATH")
+        val useCustomConfig = intent?.getBooleanExtra("USE_CUSTOM_CONFIG", false) ?: false
         val customArgs = intent?.getStringExtra("CUSTOM_ARGS") ?: "--sig-thr -j 1"
-        if (configPath == null) {
-            Log.w("Copyparty", "ServerService started with null config path")
+
+        if (configPath == null && useCustomConfig) {
+            Log.w("Copyparty", "ServerService started with custom config enabled but null config path")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -81,9 +83,18 @@ class ServerService : Service() {
                 val py = Python.getInstance()
                 val sys = py.getModule("sys")
                 
-                val argvList = mutableListOf("copyparty", "-c", configPath)
+                val argvList = mutableListOf("copyparty")
+
+                // Only append -c argument if custom config was explicitly enabled
+                if (useCustomConfig && !configPath.isNullOrEmpty()) {
+                    argvList.add("-c")
+                    argvList.add(configPath)
+                }
+
+                // Append user custom arguments
                 val customArgsList = customArgs.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
                 argvList.addAll(customArgsList)
+
                 sys.put("argv", argvList.toTypedArray())
 
                 val globals = py.getModule("builtins").callAttr("dict")
@@ -110,34 +121,6 @@ class ServerService : Service() {
                     if hasattr(sys, 'path_importer_cache'):
                         sys.path_importer_cache.clear()
 
-                    try:
-                        from PIL import Image
-                        from io import BytesIO
-                        im = Image.new("RGB", (10, 10))
-                        buf = BytesIO()
-                        im.save(buf, format="jpeg")
-                        LogManager.log("PIL TEST JPEG: successfully saved JPEG! Bytes: {}\n".format(len(buf.getvalue())))
-                        
-                        buf2 = BytesIO()
-                        im.save(buf2, format="png")
-                        LogManager.log("PIL TEST PNG: successfully saved PNG! Bytes: {}\n".format(len(buf2.getvalue())))
-                        
-                        LogManager.log("PIL REGISTERED EXTENSIONS: {}\n".format(list(Image.registered_extensions().keys())))
-                        
-                        # WebP runtime verification
-                        from PIL import features
-                        has_webp_module = features.check_module("webp")
-                        has_webp_decoder = features.check("webp")
-                        LogManager.log("[Pillow Diagnostic] WebP module loaded: {}\n".format(has_webp_module))
-                        LogManager.log("[Pillow Diagnostic] WebP support loaded: {}\n".format(has_webp_decoder))
-                        if not (has_webp_module and has_webp_decoder):
-                            raise RuntimeError(
-                                "Pillow was compiled without libwebp support! "
-                                "Ensure Chaquopy wheels are up-to-date."
-                            )
-                    except Exception as e:
-                        import traceback
-                        LogManager.log("PIL TEST FULL failed: {}. Traceback: {}\n".format(e, traceback.format_exc()))
                     class _LogRedirector:
                         def __init__(self, orig):
                             self._orig = orig
@@ -165,11 +148,29 @@ class ServerService : Service() {
                     _orig_Popen = subprocess.Popen
                     _popen_lock = threading.Lock()
                     class _LockedPopen(_orig_Popen):
-                        def __init__(self, *args, **kwargs):
+                        def __init__(self, args, *nargs, **kwargs):
+                            try:
+                                is_ffmpeg = False
+                                if isinstance(args, (list, tuple)) and len(args) > 0:
+                                    cmd0 = args[0]
+                                    if isinstance(cmd0, bytes):
+                                        is_ffmpeg = b"ffmpeg" in cmd0
+                                    elif isinstance(cmd0, str):
+                                        is_ffmpeg = "ffmpeg" in cmd0
+                                if is_ffmpeg:
+                                    args = list(args)
+                                    if isinstance(args[0], bytes):
+                                        args.insert(1, b"-threads")
+                                        args.insert(2, b"1")
+                                    else:
+                                        args.insert(1, "-threads")
+                                        args.insert(2, "1")
+                            except Exception:
+                                pass
                             _popen_lock.acquire()
                             self._released = False
                             try:
-                                _orig_Popen.__init__(self, *args, **kwargs)
+                                _orig_Popen.__init__(self, args, *nargs, **kwargs)
                             except Exception:
                                 _popen_lock.release()
                                 self._released = True
@@ -222,7 +223,7 @@ class ServerService : Service() {
 
                     import copyparty.svchub
                     _orig_hub_init = getattr(copyparty.svchub.SvcHub, '_orig_hub_init', copyparty.svchub.SvcHub.__init__)
-                    copyparty.svchub.SvcHub._orig_hub_init = _orig_hub_init
+                    copyparty.svchub.SvcHub.__init__ = _patched_init
                     def _patched_init(self, *a, **kw):
                         _orig_hub_init(self, *a, **kw)
                         copyparty.svchub.active_hub = self

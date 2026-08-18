@@ -15,16 +15,17 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.appcompat.app.AlertDialog
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
+
 class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,7 +49,8 @@ class MainActivity : AppCompatActivity() {
 
         val defaultArgs = "--sig-thr -j 1"
         val savedArgs = sharedPref.getString("custom_arguments", defaultArgs)
-        // ponytail: if user had old default with gather-threads, no-vhash, or --th-no-webp, replace it
+        
+        // Reset old defaults containing gather-threads, no-vhash, or --th-no-webp to defaultArgs
         val finalArgs = if (savedArgs != null && (savedArgs.contains("gather-threads") || savedArgs.contains("no-vhash") || savedArgs.contains("--th-no-webp"))) defaultArgs else (savedArgs ?: defaultArgs)
         etCustomArgs.setText(finalArgs)
 
@@ -150,9 +152,11 @@ class MainActivity : AppCompatActivity() {
             val customArgs = etCustomArgs.text.toString()
             sharedPref.edit().putString("custom_arguments", customArgs).apply()
 
-            // Launch Server Service
+            // Pass execution extras to ServerService
+            serviceIntent.putExtra("USE_CUSTOM_CONFIG", useCustom)
             serviceIntent.putExtra("CONFIG_PATH", configFile.absolutePath)
             serviceIntent.putExtra("CUSTOM_ARGS", customArgs)
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent)
             } else {
@@ -212,7 +216,6 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         val btnStart = findViewById<Button>(R.id.btnStart)
-        // ponytail: read the @Volatile flag directly; getRunningServices is deprecated and races with stopSelf
         if (ServerService.isRunning) {
             btnStart.text = "Stop Copyparty Server"
         } else {
@@ -246,7 +249,6 @@ class MainActivity : AppCompatActivity() {
                     if hasattr(sys, 'path_importer_cache'):
                         sys.path_importer_cache.clear()
                         
-                    # Remove cached copyparty modules so we query the actual disk version
                     to_remove = [mod for mod in sys.modules if mod == 'copyparty' or mod.startswith('copyparty.')]
                     for mod in to_remove:
                         sys.modules.pop(mod, None)
@@ -314,6 +316,17 @@ class MainActivity : AppCompatActivity() {
         
         val targetDir = File(filesDir, "site-packages").absolutePath
         PipRunner.run(this, arrayOf("install", "--upgrade", "--target", targetDir, "copyparty")) { success ->
+            runOnUiThread {
+                if (success) {
+                    Toast.makeText(this@MainActivity, "Copyparty updated successfully! Start the server to apply changes.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "Copyparty update failed! Please check logs.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+}
+Runner.run(this, arrayOf("install", "--upgrade", "--target", targetDir, "copyparty")) { success ->
             runOnUiThread {
                 if (success) {
                     Toast.makeText(this@MainActivity, "Copyparty updated successfully! Start the server to apply changes.", Toast.LENGTH_LONG).show()
