@@ -58,12 +58,12 @@ jobs:
           source:
             url: https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.3.2.tar.gz
           EOF
-          
           cat << 'EOF' > packages/chaquopy-libwebp/build.sh
           #!/bin/bash
           set -eu
           ./autogen.sh
-          ./configure --host=$HOST --prefix=$PREFIX --disable-shared --enable-static
+          export CFLAGS="-fPIC"
+          ./configure --host=$HOST --prefix=$PREFIX --disable-shared --enable-static --with-pic
           make -j $CPU_COUNT
           make install
           
