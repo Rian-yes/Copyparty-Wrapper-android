@@ -95,7 +95,7 @@ jobs:
           sed -i 's/libs = \[webp, webp + "mux", webp + "demux"\]/libs = \[webp, webp + "mux", webp + "demux", "sharpyuv"\]/g' setup.py
           export PIL_NO_LCMS=1
           export PIL_NO_JPEG2K=1
-          pip wheel --no-deps --no-build-isolation --check-build-dependencies .
+          pip install --no-deps --no-build-isolation --target=$PREFIX .
           EOF
           chmod +x packages/pillow/build.sh
       - name: Download Chaquopy Compilation target
