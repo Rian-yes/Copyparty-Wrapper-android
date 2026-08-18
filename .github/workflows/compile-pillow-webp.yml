@@ -81,6 +81,11 @@ jobs:
             name: pillow
             version: "11.0.0"
 
+          build:
+            script_env:
+              - PIL_NO_LCMS=1
+              - PIL_NO_JPEG2K=1
+
           requirements:
             host:
               - chaquopy-libjpeg 1.5.3
@@ -88,14 +93,11 @@ jobs:
               - chaquopy-libwebp 1.3.2
           EOF
 
-          # Create build.sh for Pillow to patch setup.py and disable lcms/jpeg2k
+          # Create build.sh for Pillow to patch setup.py
           cat << 'EOF' > packages/pillow/build.sh
           #!/bin/bash
           set -eu
           sed -i 's/libs = \[webp, webp + "mux", webp + "demux"\]/libs = \[webp, webp + "mux", webp + "demux", "sharpyuv"\]/g' setup.py
-          export PIL_NO_LCMS=1
-          export PIL_NO_JPEG2K=1
-          pip install --no-deps --no-build-isolation --target=$PREFIX .
           EOF
           chmod +x packages/pillow/build.sh
       - name: Download Chaquopy Compilation target
