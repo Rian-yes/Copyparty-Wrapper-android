@@ -124,6 +124,8 @@ jobs:
           # Export env variables for build-wheel script
           export ANDROID_HOME=$ANDROID_HOME
           export ANDROID_NDK=$ANDROID_NDK_ROOT
+          # Force git:// → https:// (git protocol blocked on GH Actions runners)
+          git config --global url."https://github.com/".insteadOf "git://github.com/"
           
           # Download prebuilt host dependencies from Chaquopy's repo
           ABI_UNDER=$(echo "${{ matrix.abi }}" | tr '-' '_')
