@@ -104,6 +104,23 @@ jobs:
           -            libs = [webp, webp + "mux", webp + "demux"]
           +            libs = [webp, webp + "mux", webp + "demux", "sharpyuv"]
           EOF
+
+          # 3. Override rawpy recipe with cp310-compatible numpy
+          cat << 'EOF' > packages/rawpy/meta.yaml
+          package:
+            name: rawpy
+            version: "0.16.0"
+
+          source:
+            git_url: https://github.com/letmaik/rawpy
+            git_rev: v0.16.0
+
+          requirements:
+            host:
+              - python
+              - numpy 1.26.2
+              - chaquopy-libraw 0.20.2
+          EOF
       - name: Download Chaquopy Compilation target
         run: |
           cd chaquopy_src
@@ -145,6 +162,10 @@ jobs:
           mkdir -p dist/chaquopy-libraw
           curl -fL "https://chaquo.com/pypi-13.1/chaquopy-libraw/chaquopy_libraw-0.20.2-0-py3-none-android_${DEP_API}_${ABI_UNDER}.whl" \
                -o "dist/chaquopy-libraw/chaquopy_libraw-0.20.2-0-py3-none-android_${DEP_API}_${ABI_UNDER}.whl"
+
+          mkdir -p dist/numpy
+          curl -fL "https://chaquo.com/pypi-13.1/numpy/numpy-1.26.2-0-cp310-cp310-android_21_${ABI_UNDER}.whl" \
+               -o "dist/numpy/numpy-1.26.2-0-cp310-cp310-android_21_${ABI_UNDER}.whl"
           # Run the builders
           ./build-wheel.py --python 3.10 --abi ${{ matrix.abi }} chaquopy-libwebp
           ./build-wheel.py --python 3.10 --abi ${{ matrix.abi }} pillow
