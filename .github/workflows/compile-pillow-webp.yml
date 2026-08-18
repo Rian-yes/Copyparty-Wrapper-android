@@ -1,4 +1,4 @@
-name: Compile Pillow with WebP for Android
+name: Compile Pillow (WebP) + rawpy for Android
 
 on:
   workflow_dispatch:
@@ -139,9 +139,14 @@ jobs:
           mkdir -p dist/chaquopy-freetype
           curl -fL "https://chaquo.com/pypi-13.1/chaquopy-freetype/chaquopy_freetype-2.9.1-2-py3-none-android_${DEP_API}_${ABI_UNDER}.whl" \
                -o "dist/chaquopy-freetype/chaquopy_freetype-2.9.1-2-py3-none-android_${DEP_API}_${ABI_UNDER}.whl"
-          # Run the builder
+
+          mkdir -p dist/chaquopy-libraw
+          curl -fL "https://chaquo.com/pypi-13.1/chaquopy-libraw/chaquopy_libraw-0.20.2-0-py3-none-android_${DEP_API}_${ABI_UNDER}.whl" \
+               -o "dist/chaquopy-libraw/chaquopy_libraw-0.20.2-0-py3-none-android_${DEP_API}_${ABI_UNDER}.whl"
+          # Run the builders
           ./build-wheel.py --python 3.10 --abi ${{ matrix.abi }} chaquopy-libwebp
           ./build-wheel.py --python 3.10 --abi ${{ matrix.abi }} pillow
+          ./build-wheel.py --python 3.10 --abi ${{ matrix.abi }} rawpy
           
           # Copy outputs
           mkdir -p ../../../output_wheels
@@ -176,5 +181,5 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/libs/
-          git diff-index --quiet HEAD || git commit -m "chore: commit cross-compiled Pillow wheels with WebP support"
+          git diff-index --quiet HEAD || git commit -m "chore: commit cross-compiled Pillow + rawpy wheels"
           git push origin HEAD:${{ github.ref_name }}
