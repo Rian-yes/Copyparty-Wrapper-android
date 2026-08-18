@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        abi: [arm64-v8a]
+        abi: [arm64-v8a, armeabi-v7a, x86, x86_64]
 
     steps:
       - name: Checkout Code
@@ -127,13 +127,18 @@ jobs:
           
           # Download prebuilt host dependencies from Chaquopy's repo
           ABI_UNDER=$(echo "${{ matrix.abi }}" | tr '-' '_')
+          # 32-bit ABIs use android_16, 64-bit use android_21
+          case "${{ matrix.abi }}" in
+            armeabi-v7a|x86) DEP_API=16 ;;
+            *)               DEP_API=21 ;;
+          esac
           mkdir -p dist/chaquopy-libjpeg
-          curl -L "https://chaquo.com/pypi-13.1/chaquopy-libjpeg/chaquopy_libjpeg-1.5.3-1-py3-none-android_21_${ABI_UNDER}.whl" \
-               -o "dist/chaquopy-libjpeg/chaquopy_libjpeg-1.5.3-1-py3-none-android_21_${ABI_UNDER}.whl"
-               
+          curl -fL "https://chaquo.com/pypi-13.1/chaquopy-libjpeg/chaquopy_libjpeg-1.5.3-1-py3-none-android_${DEP_API}_${ABI_UNDER}.whl" \
+               -o "dist/chaquopy-libjpeg/chaquopy_libjpeg-1.5.3-1-py3-none-android_${DEP_API}_${ABI_UNDER}.whl"
+
           mkdir -p dist/chaquopy-freetype
-          curl -L "https://chaquo.com/pypi-13.1/chaquopy-freetype/chaquopy_freetype-2.9.1-2-py3-none-android_21_${ABI_UNDER}.whl" \
-               -o "dist/chaquopy-freetype/chaquopy_freetype-2.9.1-2-py3-none-android_21_${ABI_UNDER}.whl"
+          curl -fL "https://chaquo.com/pypi-13.1/chaquopy-freetype/chaquopy_freetype-2.9.1-2-py3-none-android_${DEP_API}_${ABI_UNDER}.whl" \
+               -o "dist/chaquopy-freetype/chaquopy_freetype-2.9.1-2-py3-none-android_${DEP_API}_${ABI_UNDER}.whl"
           # Run the builder
           ./build-wheel.py --python 3.10 --abi ${{ matrix.abi }} chaquopy-libwebp
           ./build-wheel.py --python 3.10 --abi ${{ matrix.abi }} pillow
