@@ -3,6 +3,8 @@ name: Compile Pillow with WebP for Android
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
 jobs:
   build-pillow-matrix:
     runs-on: ubuntu-22.04
